@@ -1,0 +1,223 @@
+<?xml version="1.0" ?>
+<!-- Generated using onshape-to-robot -->
+<!-- Onshape https://cad.onshape.com/documents/2d5d2efc6ad76e9538efaf76/w/335635604443b630c3ad1f30/e/c92877bd07cb70ec20995481 -->
+<robot name="Impact_SlipTest">
+
+  <!-- Link base -->
+  <link name="base">
+    <inertial>
+      <origin xyz="0 0.297998 0.425" rpy="0 0 0"/>
+      <mass value="16.7892"/>
+      <inertia ixx="1.57941" ixy="0" ixz="0" iyy="0.0376423" iyz="0" izz="1.61006"/>
+    </inertial>
+    <!-- Part base -->
+    <visual>
+      <origin xyz="0 0 0" rpy="0 -0 0"/>
+      <geometry>
+        <mesh filename="assets/base.obj"/>
+      </geometry>
+      <material name="base_material">
+        <color rgba="0.647059 0.647059 0.647059 1"/>
+      </material>
+    </visual>
+    <!-- <collision>
+      <origin xyz="0 0 0" rpy="0 -0 0"/>
+      <geometry>
+        <mesh filename="assets/base.obj"/>
+      </geometry>
+    </collision> -->
+  </link>
+
+  <!-- Link prismatic_coupler -->
+  <link name="prismatic_coupler">
+    <inertial>
+      <origin xyz="0.0355 -0.025 -0.252729" rpy="0 0 0"/>
+      <mass value="0.041625"/>
+      <inertia ixx="3.1602e-05" ixy="0" ixz="0" iyy="4.58603e-05" iyz="0" izz="3.1602e-05"/>
+    </inertial>
+    <!-- Part prismatic_coupler -->
+    <visual>
+      <origin xyz="0.0355 -0.45 -0.252729" rpy="-1.5708 -0 0"/>
+      <geometry>
+        <mesh filename="assets/prismatic_coupler.obj"/>
+      </geometry>
+      <material name="prismatic_coupler_material">
+        <color rgba="0.87451 0.447059 0.317647 1"/>
+      </material>
+    </visual>
+    <!-- <collision>
+      <origin xyz="0.0355 -0.45 -0.252729" rpy="-1.5708 -0 0"/>
+      <geometry>
+        <mesh filename="assets/prismatic_coupler.obj"/>
+      </geometry>
+    </collision> -->
+  </link>
+
+  <!-- Link upper_leg -->
+  <link name="upper_leg">
+    <inertial>
+      <origin xyz="0.02025 0.02025 0.0916427" rpy="0 0 0"/>
+      <mass value="0.100463"/>
+      <inertia ixx="0.00303506" ixy="0" ixz="-4.83709e-36" iyy="0.00303506" iyz="0" izz="4.23659e-05"/>
+    </inertial>
+    <!-- Part upper_leg -->
+    <visual>
+      <origin xyz="0.02025 0.02025 0.791643" rpy="3.14159 -0 0"/>
+      <geometry>
+        <mesh filename="assets/upper_leg.obj"/>
+      </geometry>
+      <material name="upper_leg_material">
+        <color rgba="0.513725 0.737255 0.407843 1"/>
+      </material>
+    </visual>
+    <!-- <collision>
+      <origin xyz="0.02025 0.02025 0.791643" rpy="3.14159 -0 0"/>
+      <geometry>
+        <mesh filename="assets/upper_leg.obj"/>
+      </geometry>
+    </collision> -->
+  </link>
+
+  <!-- Link lower_leg -->
+  <link name="lower_leg">
+    <inertial>
+      <origin xyz="0.01525 -0.01525 0.0586111" rpy="0 0 0"/>
+      <mass value="0.109526"/>
+      <inertia ixx="0.0021715" ixy="0" ixz="0" iyy="0.00217155" iyz="1.42855e-17" izz="1.63792e-05"/>
+    </inertial>
+    <!-- Part lower_leg -->
+    <visual>
+      <origin xyz="0.01525 -0.01525 0.290209" rpy="-3.14159 -0 0"/>
+      <geometry>
+        <mesh filename="assets/lower_leg.obj"/>
+      </geometry>
+      <material name="lower_leg_material">
+        <color rgba="0.980392 0.796078 0.262745 1"/>
+      </material>
+    </visual>
+    <!-- <collision>
+      <origin xyz="0.01525 -0.01525 0.290209" rpy="-3.14159 -0 0"/>
+      <geometry>
+        <mesh filename="assets/lower_leg.obj"/>
+      </geometry>
+    </collision> -->
+  </link>
+
+  <!-- Link foot -->
+  <link name="foot">
+    <inertial>
+      <origin xyz="-0.0590876 0.0227389 3.71601e-07" rpy="0 0 0"/>
+      <mass value="0.022836"/>
+      <inertia ixx="2.12028e-05" ixy="1.37383e-05" ixz="0" iyy="5.16152e-05" iyz="0" izz="4.12459e-05"/>
+    </inertial>
+    <!-- Part foot -->
+    <visual>
+      <origin xyz="0 0 3.71601e-07" rpy="1.93816 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/foot.obj"/>
+      </geometry>
+      <material name="foot_material">
+        <color rgba="0.341176 0.776471 0.741176 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 3.71601e-07" rpy="1.93816 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/foot.obj"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Floor or Slope, added manually -->
+  <link name="floor">
+    <inertial>
+      <origin xyz="0.0 0.0 -0.35" rpy="-0.75 0.0 0.0"/>
+      <mass value="1.0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.0 0.0 -0.35" rpy="-0.75 0.0 0.0"/>
+      <geometry>
+        <box size="0.5 1.0 0.05"/>
+      </geometry>
+      <material>
+        <color rgba="0.3 0.3 0.3 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0 0.0 -0.35" rpy="-0.75 0.0 0.0"/>
+      <geometry>
+        <box size="0.5 1.0 0.05"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Weight attached to upper_leg, added manually -->
+  <link name="weight">
+    <inertial>
+      <origin xyz="0.0 0.0 0.0"/>
+      <mass value="5.0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.0 0.0 0.0"/>
+      <geometry>
+        <cylinder radius="0.125" length="0.075"/>
+      </geometry>
+      <material>
+        <color rgba="0.2 0.3 0.7 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- Weight fixed to upper leg, added manually -->
+  <joint name="weight_weld" type="fixed">
+    <origin xyz="0.02 0.02 -0.25"/>
+    <parent link="upper_leg"/>
+    <child link="weight"/>
+  </joint>
+
+  <!-- Joint from lower_leg to foot -->
+  <joint name="ankle" type="revolute">
+    <origin xyz="0.01525 -0.01525 0.290209" rpy="1.5708 6.62847e-15 -1.5708"/>
+    <parent link="lower_leg"/>
+    <child link="foot"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from upper_leg to lower_leg -->
+  <joint name="knee" type="prismatic">
+    <origin xyz="0.005 0.0355 0.391643" rpy="0 -0 0"/>
+    <parent link="upper_leg"/>
+    <child link="lower_leg"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-0.252709" upper="0.147291"/>
+  </joint>
+  <!-- Joint from prismatic_coupler to upper_leg -->
+  <joint name="thigh" type="prismatic">
+    <origin xyz="0.01525 -0.025 -0.272979" rpy="1.5708 -0 0"/>
+    <parent link="prismatic_coupler"/>
+    <child link="upper_leg"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-0.366643" upper="0.183357"/>
+  </joint>
+  <!-- Joint from base to prismatic_coupler -->
+  <joint name="rail" type="prismatic">
+    <origin xyz="-0.0355 0.26475 0.45" rpy="1.5708 -0 0"/>
+    <parent link="base"/>
+    <child link="prismatic_coupler"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-0.211271" upper="0.716729"/>
+  </joint>
+
+  <!-- Fix the base link -->
+  <joint name="base_weld" type="fixed">
+    <parent link="world" />
+    <child link="base" />
+  </joint>
+
+  <!-- Fix the floor -->
+  <joint name="floor_weld" type="fixed">
+    <parent link="world" />
+    <child link="floor" />
+  </joint>
+
+</robot>
