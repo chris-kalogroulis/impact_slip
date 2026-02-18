@@ -16,6 +16,13 @@ from pydrake.systems.framework import DiagramBuilder, LeafSystem, BasicVector
 from pydrake.visualization import AddDefaultVisualization, ModelVisualizer
 from pydrake.common.value import AbstractValue # type: ignore
 from pydrake.systems.primitives import LogVectorOutput
+from pydrake.geometry import (
+    AddCompliantHydroelasticProperties,
+    AddRigidHydroelasticProperties,
+    AddContactMaterial,
+    ProximityProperties,
+)
+from pydrake.multibody.plant import ContactModel
 
 
 # Start the visualizer. The cell will output an HTTP link after the execution.
@@ -27,9 +34,10 @@ meshcat = StartMeshcat()
 # need the 'loop_once' flag.
 test_mode = True if "TEST_SRCDIR" in os.environ else False
 
-class PointContactForceVectorBetweenBodies(LeafSystem):
-    """Outputs summed contact force vector [Fx,Fy,Fz] (N) from point-pair contacts
-    between two named bodies, expressed in world frame.
+
+class ContactForceVectorBetweenBodies(LeafSystem):
+    """Summed contact force [Fx,Fy,Fz] between two bodies (hydroelastic + point-pair),
+    expressed in world frame. Reports force on bodyA_name due to bodyB_name when possible.
     """
 
     def __init__(self, plant, bodyA_name: str, bodyB_name: str):
@@ -37,38 +45,61 @@ class PointContactForceVectorBetweenBodies(LeafSystem):
         self._idxA = plant.GetBodyByName(bodyA_name).index()
         self._idxB = plant.GetBodyByName(bodyB_name).index()
 
-        # Must match plant's ContactResults type exactly.
         self.DeclareAbstractInputPort(
             "contact_results",
             plant.get_contact_results_output_port().Allocate()
         )
+        self.DeclareVectorOutputPort("force_W", BasicVector(3), self._CalcOutput)
 
-        # 3D output: Fx, Fy, Fz
-        self.DeclareVectorOutputPort(
-            "force_W",
-            BasicVector(3),
-            self._CalcOutput
-        )
+    @staticmethod
+    def _as_force3(f):
+        if hasattr(f, "translational"):
+            return np.asarray(f.translational()).reshape(3,)
+        return np.asarray(f).reshape(3,)
+
+    @staticmethod
+    def _get_body_indices(info):
+        # Returns (a, b) body indices if possible; otherwise (None, None).
+        if hasattr(info, "bodyA") and hasattr(info, "bodyB"):
+            return info.bodyA().index(), info.bodyB().index()
+        if hasattr(info, "body_A") and hasattr(info, "body_B"):
+            return info.body_A().index(), info.body_B().index()
+        if hasattr(info, "bodyA_index") and hasattr(info, "bodyB_index"):
+            return info.bodyA_index(), info.bodyB_index()
+        return None, None
 
     def _CalcOutput(self, context, output: BasicVector):
         cr = self.get_input_port(0).Eval(context)
         F_W = np.zeros(3)
 
+        # 1) Hydroelastic contact surfaces
+        for i in range(cr.num_hydroelastic_contacts()):
+            info = cr.hydroelastic_contact_info(i)
+            a, b = self._get_body_indices(info)
+
+            if a is not None:
+                if not ((a == self._idxA and b == self._idxB) or (a == self._idxB and b == self._idxA)):
+                    continue
+                # Force on the requested bodyA_name
+                if a == self._idxA:
+                    F_W += self._as_force3(info.F_Ac_W())
+                else:
+                    F_W += self._as_force3(info.F_Bc_W())
+            else:
+                # Can't identify bodies in this build; assume this is the contact we care about.
+                F_W += self._as_force3(info.F_Ac_W())
+
+        # 2) Point-pair fallback contacts
         for i in range(cr.num_point_pair_contacts()):
             info = cr.point_pair_contact_info(i)
             a = info.bodyA_index()
             b = info.bodyB_index()
-
-            if (a == self._idxA and b == self._idxB) or (a == self._idxB and b == self._idxA):
-                f = info.contact_force()
-                # Drake builds differ: sometimes f is a 3-vector, sometimes SpatialForce.
-                if hasattr(f, "translational"):
-                    f_vec = np.asarray(f.translational()).reshape(3,)
-                else:
-                    f_vec = np.asarray(f).reshape(3,)
-                F_W += f_vec
+            if not ((a == self._idxA and b == self._idxB) or (a == self._idxB and b == self._idxA)):
+                continue
+            F_W += self._as_force3(info.contact_force())
 
         output.SetFromVector(F_W)
+
 
 
 def add_joint_springs_and_dampers(plant: MultibodyPlant, joint_params: dict):
@@ -144,15 +175,17 @@ def create_scene(sim_time_step):
         "thigh": dict(type="prismatic", A="prismatic_coupler", B="upper_leg", 
                       k=00.0, x0=0.00, d=0.00),
         "knee":  dict(type="prismatic", A="upper_leg", B="lower_leg",         
-                      k=750, x0=0.40, d=10.0),
+                      k=80000, x0=0.40, d=1000.0),
         "ankle": dict(type="revolute",  
-                      k=25, q0=0.00, d=5.00)  # k [N·m/rad], d [N·m·s/rad], q0 [rad]
+                      k=3500, q0=0.00, d=500.00)  # k [N·m/rad], d [N·m·s/rad], q0 [rad]
     }
 
     add_joint_springs_and_dampers(plant, joint_params)
 
     # ---------------------------
 
+    # Hydroelastic contact (falls back to point contact if something can't be hydroelastified)
+    plant.set_contact_model(ContactModel.kHydroelasticWithFallback)
     plant.Finalize()
     plant_context = plant.CreateDefaultContext()
 
@@ -160,8 +193,9 @@ def create_scene(sim_time_step):
 
 
     contact_force_sys = builder.AddSystem(
-        PointContactForceVectorBetweenBodies(plant, "foot", "floor")  # <- your names
+        ContactForceVectorBetweenBodies(plant, "foot", "floor")
     )
+
     contact_force_sys.set_name("contact_force_foot_floor")
 
     builder.Connect(
@@ -201,7 +235,7 @@ def run_simulation(sim_time_step):
     diagram = create_scene(sim_time_step)
     simulator = initialize_simulation(diagram)
     meshcat.StartRecording()
-    finish_time = 0.1 if test_mode else 5.0
+    finish_time = 0.1 if test_mode else 3.0
     simulator.AdvanceTo(finish_time)
     meshcat.PublishRecording()
 
@@ -214,18 +248,18 @@ def run_simulation(sim_time_step):
     axs[0].plot(t, F[0, :])
     axs[0].set_ylabel("Fx [N]")
     axs[0].grid(True)
-    axs[0].set_ylim((0,20))
+    #axs[0].set_ylim((0,20))
 
     axs[1].plot(t, F[1, :])
     axs[1].set_ylabel("Fy [N]")
     axs[1].grid(True)
-    axs[1].set_ylim((0,-50))
+    axs[1].set_ylim((0,50))
 
     axs[2].plot(t, F[2, :])
     axs[2].set_ylabel("Fz [N]")
     axs[2].set_xlabel("time [s]")
     axs[2].grid(True)
-    axs[2].set_ylim((0,-150))
+    axs[2].set_ylim((0,100))
 
     plt.tight_layout()
     plt.show()
