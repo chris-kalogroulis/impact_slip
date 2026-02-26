@@ -18,17 +18,19 @@ def prettify(elem, level=0):
 
 class URDFBuilder:
     def __init__(self, name="generated_robot", drake_props=None):
+        # Register drake namespace so output uses drake: prefix
         self.DRAKE_NS = "drake"
         self.DRAKE_URI = "http://drake.mit.edu"
         ET.register_namespace(self.DRAKE_NS, self.DRAKE_URI)
 
         self.robot = ET.Element("robot", name=name)
 
+        # Default proximity properties (override by passing drake_props dict)
         self.drake_props = drake_props or {
-            "hydroelastic_type": "compliant",
-            "hydroelastic_modulus": "5e7",
-            "hunt_crossley_dissipation": "1.0",
-            "resolution_hint": "0.01",
+            "hydroelastic_type": "compliant",   # "compliant" or "rigid"
+            "hydroelastic_modulus": "5e7",      # Pa
+            "hunt_crossley_dissipation": "1.0", # s/m
+            "resolution_hint": "0.01",          # m
             "mu_static": "1.0",
             "mu_dynamic": "0.8",
         }
@@ -53,10 +55,16 @@ class URDFBuilder:
         ET.SubElement(prox, drake_tag("mu_dynamic"),
                       value=str(self.drake_props["mu_dynamic"]))
 
+    # -------- NEW: create ONE link and then add many geometries to it --------
     def add_link(self, name):
         return ET.SubElement(self.robot, "link", name=name)
 
     def add_box_to_link(self, link, geom_name, size, xyz, color):
+        """
+        Adds a visual + collision (with Drake proximity props) to an EXISTING link.
+        geom_name is only used for unique material names (helps debugging).
+        """
+        # Visual
         visual = ET.SubElement(link, "visual")
         ET.SubElement(visual, "origin", xyz=f"{xyz[0]} {xyz[1]} {xyz[2]}", rpy="0 0 0")
         geometry = ET.SubElement(visual, "geometry")
@@ -64,13 +72,20 @@ class URDFBuilder:
         material = ET.SubElement(visual, "material", name=f"{geom_name}_mat")
         ET.SubElement(material, "color", rgba=f"{color[0]} {color[1]} {color[2]} {color[3]}")
 
+        # Collision
         collision = ET.SubElement(link, "collision")
         ET.SubElement(collision, "origin", xyz=f"{xyz[0]} {xyz[1]} {xyz[2]}", rpy="0 0 0")
         geometry = ET.SubElement(collision, "geometry")
         ET.SubElement(geometry, "box", size=f"{size[0]} {size[1]} {size[2]}")
+
+        # Drake properties on every collision geometry
         self._add_drake_proximity_properties(collision)
 
     def set_link_inertial_box_approx(self, link, mass, size, xyz=(0, 0, 0)):
+        """
+        Single inertial for the whole link.
+        We approximate inertia as if it's just the base box (or you can improve this).
+        """
         inertial = ET.SubElement(link, "inertial")
         ET.SubElement(inertial, "origin", xyz=f"{xyz[0]} {xyz[1]} {xyz[2]}", rpy="0 0 0")
         ET.SubElement(inertial, "mass", value=str(mass))
@@ -91,44 +106,6 @@ class URDFBuilder:
         tree.write(filename, encoding="utf-8", xml_declaration=True)
 
 
-def _random_spaced_positions_1d(n, x_min, x_max, min_gap, rng, max_tries=20000):
-    """
-    Sample n positions in [x_min, x_max] such that any two are at least min_gap apart.
-    Simple rejection sampling; good for moderate n.
-    """
-    if n <= 0:
-        return np.array([], dtype=float)
-
-    span = x_max - x_min
-    if span < 0:
-        raise ValueError("x_max must be >= x_min")
-    if n == 1:
-        return np.array([float(rng.uniform(x_min, x_max))], dtype=float)
-
-    # Necessary condition (not sufficient in all packings, but a good sanity check)
-    if min_gap * (n - 1) > span + 1e-12:
-        raise ValueError(
-            f"Cannot place n={n} points with min_gap={min_gap} inside "
-            f"[{x_min}, {x_max}] (span={span}). Reduce n or min_gap."
-        )
-
-    positions = []
-    tries = 0
-    while len(positions) < n and tries < max_tries:
-        tries += 1
-        x = float(rng.uniform(x_min, x_max))
-        if all(abs(x - p) >= min_gap for p in positions):
-            positions.append(x)
-
-    if len(positions) < n:
-        raise RuntimeError(
-            f"Failed to sample {n} non-overlapping positions after {max_tries} tries. "
-            f"Try reducing n or min_gap."
-        )
-
-    return np.array(sorted(positions), dtype=float)
-
-
 def generate_robot(
     base_size,
     base_color,
@@ -137,18 +114,18 @@ def generate_robot(
     top_box_x,
     top_box_z,
     filename,
-    drake_props=None,
-    random=False,          # ✅ NEW
-    seed=None,             # optional: reproducible randomness
-    min_gap=None,          # optional: minimum center-to-center gap in x
+    drake_props=None
 ):
     lr, lg, lb, la = top_color
     Lr, Lg, Lb, La = base_color
     Lx, Ly, Lz = base_size
 
     builder = URDFBuilder(drake_props=drake_props)
+
+    # ✅ ONE link called "terrain"
     terrain = builder.add_link("terrain")
 
+    # Base geometry inside terrain link (centered at origin)
     builder.add_box_to_link(
         link=terrain,
         geom_name="base",
@@ -157,27 +134,16 @@ def generate_robot(
         color=(Lr, Lg, Lb, La),
     )
 
-    # Valid x-range for bump centers (stay fully on top of base)
-    x_min = -Lx / 2 + top_box_x / 2
-    x_max =  Lx / 2 - top_box_x / 2
+    # Evenly spaced x positions for bumps
+    x_min = -Lx/2 + top_box_x/2
+    x_max = Lx/2 - top_box_x/2
+    if n == 1:
+        x_positions = [0.0]
+    else:
+        x_positions = np.linspace(x_min, x_max, n)
 
     # Height placement (on top surface)
-    z_center = Lz / 2 + top_box_z / 2
-
-    if n == 1:
-        x_positions = np.array([0.0], dtype=float) if not random else np.array(
-            [float(np.random.default_rng(seed).uniform(x_min, x_max))], dtype=float
-        )
-    else:
-        if random:
-            rng = np.random.default_rng(seed)
-            if min_gap is None:
-                min_gap = top_box_x  # default: no overlap in x (just-touching allowed)
-            x_positions = _random_spaced_positions_1d(
-                n=n, x_min=x_min, x_max=x_max, min_gap=float(min_gap), rng=rng
-            )
-        else:
-            x_positions = np.linspace(x_min, x_max, n)
+    z_center = Lz/2 + top_box_z/2
 
     for i, x in enumerate(x_positions):
         builder.add_box_to_link(
@@ -188,6 +154,8 @@ def generate_robot(
             color=(lr, lg, lb, la),
         )
 
+    # Inertial: ONE per link. Approximate using base box.
+    # (If this is "ground"/static in Drake, inertia is mostly irrelevant.)
     builder.set_link_inertial_box_approx(
         link=terrain,
         mass=1.0,
@@ -200,10 +168,10 @@ def generate_robot(
 
 if __name__ == "__main__":
     drake_props = {
-        "hydroelastic_type": "compliant",
-        "hydroelastic_modulus": "5e7",
-        "hunt_crossley_dissipation": "1.0",
-        "resolution_hint": "0.01",
+        "hydroelastic_type": "compliant",   # or "rigid"
+        "hydroelastic_modulus": "5e7",      # Pa
+        "hunt_crossley_dissipation": "1.0", # s/m
+        "resolution_hint": "0.01",          # m
         "mu_static": "0.15",
         "mu_dynamic": "0.12",
     }
@@ -214,10 +182,7 @@ if __name__ == "__main__":
         top_color=(0.4, 0.4, 0.7, 1.0),
         n=30,
         top_box_x=0.01,
-        top_box_z=0.005,
+        top_box_z=0.0075,
         filename="terr_geom.urdf",
-        drake_props=drake_props,
-        random=True,   # ✅ random spacing
-        seed=0,        # optional
-        # min_gap=0.012 # optional (defaults to top_box_x)
+        drake_props=drake_props
     )
