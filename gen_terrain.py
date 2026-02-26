@@ -180,7 +180,7 @@ if __name__ == "__main__":
         base_size=(1.5, 0.5, 0.05),
         base_color=(0.5, 0.5, 0.5, 1.0),
         top_color=(0.4, 0.4, 0.7, 1.0),
-        n=75,
+        n=60,
         top_box_x=0.01,
         top_box_z=0.005,
         filename="terr_geom.urdf",

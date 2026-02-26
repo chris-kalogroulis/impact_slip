@@ -160,7 +160,7 @@
     <parent link="prismatic_coupler"/>
     <child link="upper_leg"/>
     <axis xyz="0 0 1"/>
-    <limit effort="10" velocity="10" lower="-0.566643" upper="0.183357"/>
+    <limit effort="10" velocity="10" lower="-0.666643" upper="0.383357"/>
   </joint>
   <!-- Joint from base to prismatic_coupler -->
   <joint name="rail" type="prismatic">
@@ -168,7 +168,7 @@
     <parent link="base"/>
     <child link="prismatic_coupler"/>
     <axis xyz="0 0 1"/>
-    <limit effort="10" velocity="10" lower="-0.211271" upper="0.716729"/>
+    <limit effort="10" velocity="10" lower="-0.411271" upper="0.716729"/>
   </joint>
 
   <!-- Fix the base link -->
